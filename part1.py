@@ -42,9 +42,9 @@ class Gui():
             scoreTextXLocation, scoreTextYLocation, fill=textColour, 
             text='Your Score: 0', font=("Helvetica","11","bold"))
         #binding the arrow keys to be able to control the snake
-        for key in ("Left", "Right", "Up", "Down"):
-            self.root.bind(f"<Key-{key}>", game.whenAnArrowKeyIsPressed)
-
+        for key in ("Left", "Right", "Up", "Down"): 
+            self.root.bind(f"<Key-{key}>", game.whenAnArrowKeyIsPressed) #game is a global variable representing the game object created in the main function below
+            #whenAnArrowKeyIsPressed argument e is passed by the bind function and it contains the key that was pressed by the gamer. 
     def gameOver(self):
         """
             This method is used at the end to display a
@@ -61,8 +61,8 @@ class QueueHandler():
         This class implements the queue handler for the game.
     """
     def __init__(self):
-        self.queue = gameQueue
-        self.gui = gui
+        self.queue: queue.Queue = gameQueue
+        self.gui: Gui = gui
         self.queueHandler()
     
     def queueHandler(self):
@@ -80,10 +80,12 @@ class QueueHandler():
         try:
             while True:
                 task = self.queue.get_nowait()
+                if DEBUG:
+                    print(f"Handling task: {task}")
                 if "game_over" in task:
                     gui.gameOver()
                 elif "move" in task:
-                    points = [x for point in task["move"] for x in point]
+                    points = [x for point in task["move"] for x in point] #list of the snake coordinates in the form [x1, y1, x2, y2, ...] to be used in the canvas.coords method to update the snake icon coordinates
                     gui.canvas.coords(gui.snakeIcon, *points)
                 elif "prey" in task:
                     gui.canvas.coords(gui.preyIcon, *task["prey"])
@@ -92,6 +94,8 @@ class QueueHandler():
                         gui.score, text=f"Your Score: {task['score']}")
                 self.queue.task_done()
         except queue.Empty:
+            if DEBUG:
+                print("Queue is empty, scheduling the next check")
             gui.root.after(100, self.queueHandler)
 
 
@@ -104,16 +108,16 @@ class Game():
            This initializer sets the initial snake coordinate list, movement
            direction, and arranges for the first prey to be created.
         """
-        self.queue = gameQueue
+        self.queue: queue.Queue = gameQueue
         self.score = 0
         #starting length and location of the snake
         #note that it is a list of tuples, each being an
         # (x, y) tuple. Initially its size is 5 tuples.       
-        self.snakeCoordinates = [(495, 55), (485, 55), (475, 55),
+        self.snakeCoordinates: list[tuple[int, int]] = [(495, 55), (485, 55), (475, 55),
                                  (465, 55), (455, 55)]
         #initial direction of the snake
-        self.direction = "Left"
-        self.gameNotOver = True
+        self.direction: str = "Left"
+        self.gameNotOver: bool = True
         self.createNewPrey()
 
     def superloop(self) -> None:
@@ -125,10 +129,15 @@ class Game():
             are generated.
         """
         SPEED = 0.15     #speed of snake updates (sec)
+        if DEBUG:
+            print("Starting superloop")
         while self.gameNotOver:
             #complete the method implementation below
-            pass #remove this line from your implementation
-
+            self.queue.put({"move": self.snakeCoordinates})
+            time.sleep(SPEED)
+            self.move() #move called here to make sure the snake coordinates are updated before the next move task is generated
+            #this prevents a game over without the snake actually moving since the snake coordinates are not updated in the gui
+            
     def whenAnArrowKeyIsPressed(self, e) -> None:
         """ 
             This method is bound to the arrow keys
@@ -159,9 +168,35 @@ class Game():
             The snake coordinates list (representing its length 
             and position) should be correctly updated.
         """
+        def isPreyCaptured(newSnakeCoordinates: tuple[int, int]) -> bool:
+            """ 
+                This helper method checks if the prey has been captured
+                based on the new head coordinates of the snake.
+                The prey is captured if the new head coordinates of the snake 
+                are within the rectangle defined by the prey coordinates.
+                Both the snake and the prey are represented as rectangles, so we need to check if the head of the snake (which is represented by a rectangle with the same coordinates as its center) is within the rectangle of the prey.
+            """
+            preyX1, preyY1, preyX2, preyY2 = self.preyCoordinates
+            snakeX, snakeY = newSnakeCoordinates
+            return (preyX1-SNAKE_ICON_WIDTH//2 <= snakeX <= preyX2 + SNAKE_ICON_WIDTH//2) and (preyY1-SNAKE_ICON_WIDTH//2 <= snakeY <= preyY2 + SNAKE_ICON_WIDTH//2)
+
+        if DEBUG:
+            print("Moving snake logic")
         NewSnakeCoordinates = self.calculateNewCoordinates()
         #complete the method implementation below
-
+        self.snakeCoordinates.append(NewSnakeCoordinates) #appending new head coordinates to the snake coordinates list
+        if isPreyCaptured(NewSnakeCoordinates): #checking if the prey has been captured
+            if DEBUG:
+                print("Prey captured!")
+            self.score += 1
+            self.queue.put({"score": self.score})
+            #need to remove the prey from the canvas before creating a new one since the createNewPrey method only updates the prey coordinates and does not check if there is already a prey on the canvas
+            self.queue.put({"prey": (0, 0, 0, 0)}) #removing the prey from the canvas by setting its coordinates to (0, 0, 0, 0)
+            self.createNewPrey()
+        else:
+            self.snakeCoordinates.pop(0) #removing the tail coordinates from the snake coordinates list since the snake has not captured the prey and thus its length should not increase
+        #edgecase: prey could be on snake coordinates, so we should check if the game is over outside of the if statement 
+        self.isGameOver(NewSnakeCoordinates) #checking if the game is over based on the new head coordinates
 
     def calculateNewCoordinates(self) -> tuple:
         """
@@ -172,11 +207,19 @@ class Game():
             head of the snake.
             It is used by the move() method.    
         """
-        lastX, lastY = self.snakeCoordinates[-1]
+        lastX, lastY = self.snakeCoordinates[-1] #getting the current head coordinates of the snake
         #complete the method implementation below
+        if self.direction == "Left":
+            return (lastX - SNAKE_ICON_WIDTH, lastY) #left is associated with decreasing the x coordinate
+        elif self.direction == "Right":
+            return (lastX + SNAKE_ICON_WIDTH, lastY) #right is associated with increasing the x coordinate
+        elif self.direction == "Up":
+            return (lastX, lastY - SNAKE_ICON_WIDTH) #up is associated with decreasing the y coordinate
+        elif self.direction == "Down":
+            return (lastX, lastY + SNAKE_ICON_WIDTH) #down is associated with increasing the y coordinate
+        #no need to check for the direction validity since it is already checked in whenAnArrowKeyIsPressed method
 
-
-    def isGameOver(self, snakeCoordinates) -> None:
+    def isGameOver(self, snakeCoordinates: tuple[int, int]) -> None:
         """
             This method checks if the game is over by 
             checking if now the snake has passed any wall
@@ -185,7 +228,18 @@ class Game():
             field and also adds a "game_over" task to the queue. 
         """
         x, y = snakeCoordinates
+        if DEBUG:
+            print(f"Checking if game is over with new head coordinates: {snakeCoordinates}")
+            print(f"Current snake coordinates: {self.snakeCoordinates}")
+            print(f"bool conditions: {(x < 0 or x >= WINDOW_WIDTH or y < 0 or y >= WINDOW_HEIGHT)}, {snakeCoordinates in self.snakeCoordinates}")
         #complete the method implementation below
+        #only need to check if the new head coordinates are out of bounds or if they are in the snake coordinates list (which means the snake has bit itself)
+        if (x < 0 or x >= WINDOW_WIDTH or y < 0 or y >= WINDOW_HEIGHT or self.snakeCoordinates.count(snakeCoordinates) > 1):
+            #we actually need to check if there are two instances of the new head coordinates in the snake coordinates list since the new head coordinates are already appended to the snake coordinates list before calling this method
+            self.gameNotOver = False
+            self.queue.put({"game_over": True})
+            # self.snakeCoordinates.clear() #clearing the snake coordinates list since the game is over
+            # self.preyCoordinates = None #clearing the prey coordinates since the game is over
 
     def createNewPrey(self) -> None:
         """ 
@@ -198,19 +252,28 @@ class Game():
             To make playing the game easier, set the x and y to be THRESHOLD
             away from the walls. 
         """
+        #new prey coordinates can be placed on top of the snake!
         THRESHOLD = 15   #sets how close prey can be to borders
         #complete the method implementation below
-
+        x = random.randint(THRESHOLD + PREY_ICON_WIDTH_HALF, WINDOW_WIDTH - THRESHOLD - PREY_ICON_WIDTH_HALF) #randomly picking x coordinate for the centre of prey
+        y = random.randint(THRESHOLD + PREY_ICON_WIDTH_HALF, WINDOW_HEIGHT - THRESHOLD - PREY_ICON_WIDTH_HALF) #randomly picking y coordinate for the centre of prey
+        #must include the PREY_ICON_WIDTH_HALF in the random range to make sure the prey is fully visible and not partially out of bounds
+        self.preyCoordinates = (x - PREY_ICON_WIDTH_HALF, y - PREY_ICON_WIDTH_HALF, x + PREY_ICON_WIDTH_HALF, y + PREY_ICON_WIDTH_HALF) #calculating the prey rectangle coordinates based on the prey center coordinates and the prey icon width
+        self.queue.put({"prey": self.preyCoordinates})
 
 if __name__ == "__main__":
     #some constants for our GUI
     WINDOW_WIDTH = 500           
     WINDOW_HEIGHT = 300 
-    SNAKE_ICON_WIDTH = 15
+    SNAKE_ICON_WIDTH = 25
     #add the specified constant PREY_ICON_WIDTH here     
+    PREY_ICON_WIDTH = 10
+    PREY_ICON_WIDTH_HALF = PREY_ICON_WIDTH // 2 #half of the prey icon width to be used in the createNewPrey method to calculate the prey rectangle coordinates
 
-    BACKGROUND_COLOUR = "green"   #you may change this colour if you wish
+    BACKGROUND_COLOUR = "grey"   #you may change this colour if you wish
     ICON_COLOUR = "yellow"        #you may change this colour if you wish
+
+    DEBUG = True                   #set to True to enable debug output
 
     gameQueue = queue.Queue()     #instantiate a queue object using python's queue class
 
@@ -225,3 +288,10 @@ if __name__ == "__main__":
 
     #start the GUI's own event loop
     gui.root.mainloop()
+
+    # check if there will be any conflicts regarding the wait time of the superloop and the gui
+    #if the gui updates slower than the superloop, there will be perceived jumps in the snake movement since the superloop will be updating the snake coordinates more frequently than the gui can update the snake icon on the canvas. 
+    #also, if more directions are pressed within the wait time of the superloop, the last direction will be the one that is registered and the previous directions will be ignored
+
+    #todo: need to update gui in the case of the snake biting itself (it ends game before animation unlike hitting the wall)
+    #todo: need to investigate why the snake dies before hitting the bottom and right walls (maxwidth/height conditions)
