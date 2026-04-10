@@ -28,13 +28,8 @@ Task types in the queue:
 
 ### 2.2 Visual Aid A - Component/Data Flow Diagram
 
-```mermaid
-flowchart LR
-    K[Arrow Key Input] --> G[Game]
-    G -->|move, prey, score, game_over tasks| Q[(Thread-safe Queue)]
-    Q --> H[QueueHandler]
-    H --> U[GUI Canvas Updates]
-    U --> P[Player Sees Frame]
+```text
+Arrow Key Input -> Game -> Thread-safe Queue -> QueueHandler -> GUI Canvas Updates -> Player Sees Frame
 ```
 
 Explanation:
@@ -117,7 +112,6 @@ Boundary condition:
 x_head < 0 or x_head >= WINDOW_WIDTH or y_head < 0 or y_head >= WINDOW_HEIGHT
 
 Self-collision condition:
-S
 count(head_position in snakeCoordinates) > 1
 
 The count-based check is used because the new head is appended before collision evaluation.
@@ -135,10 +129,7 @@ The count-based check is used because the new head is appended before collision 
 - Point-in-rectangle checks felt too strict because snake has visible width.
 - Expanding prey bounds by half snake width improved perceived fairness.
 
-3. Collision edge behavior near boundaries.
-- Careful inequality choice (>= vs >) is required to prevent inconsistent border deaths.
-
-4. Event timing and input granularity.
+3. Event timing and input granularity.
 - Multiple key presses between ticks may collapse to the last direction before next update.
 
 ### 3.2 Known Issues Tracked During Development

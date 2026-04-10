@@ -1,4 +1,4 @@
-# CPEN 333 Snake Game - Part 2 Additional Documentation
+# Part 2
 
 Group Number: B50  
 Student Names: Felipe Nunes, Nima Karimzadehshirazi
