@@ -210,13 +210,13 @@ class Game():
         lastX, lastY = self.snakeCoordinates[-1] #getting the current head coordinates of the snake
         #complete the method implementation below
         if self.direction == "Left":
-            return (lastX - SNAKE_ICON_WIDTH, lastY) #left is associated with decreasing the x coordinate
+            return (lastX - SNAKE_ICON_MOVE_STEP, lastY) #left is associated with decreasing the x coordinate
         elif self.direction == "Right":
-            return (lastX + SNAKE_ICON_WIDTH, lastY) #right is associated with increasing the x coordinate
+            return (lastX + SNAKE_ICON_MOVE_STEP, lastY) #right is associated with increasing the x coordinate
         elif self.direction == "Up":
-            return (lastX, lastY - SNAKE_ICON_WIDTH) #up is associated with decreasing the y coordinate
+            return (lastX, lastY - SNAKE_ICON_MOVE_STEP) #up is associated with decreasing the y coordinate
         elif self.direction == "Down":
-            return (lastX, lastY + SNAKE_ICON_WIDTH) #down is associated with increasing the y coordinate
+            return (lastX, lastY + SNAKE_ICON_MOVE_STEP) #down is associated with increasing the y coordinate
         #no need to check for the direction validity since it is already checked in whenAnArrowKeyIsPressed method
 
     def isGameOver(self, snakeCoordinates: tuple[int, int]) -> None:
@@ -228,18 +228,18 @@ class Game():
             field and also adds a "game_over" task to the queue. 
         """
         x, y = snakeCoordinates
-        if DEBUG:
-            print(f"Checking if game is over with new head coordinates: {snakeCoordinates}")
-            print(f"Current snake coordinates: {self.snakeCoordinates}")
-            print(f"bool conditions: {(x < 0 or x >= WINDOW_WIDTH or y < 0 or y >= WINDOW_HEIGHT)}, {snakeCoordinates in self.snakeCoordinates}")
         #complete the method implementation below
-        #only need to check if the new head coordinates are out of bounds or if they are in the snake coordinates list (which means the snake has bit itself)
+
+        #Wall collision is checked using the head CENTER coordinate, since
+        #snakeCoordinates stores center points for the Tkinter line. This means the
+        #visible thick snake may appear to touch or slightly cross a wall before the
+        #game ends. To make collision depend on the visible edge instead, half of
+        #SNAKE_ICON_WIDTH would need to be included in the boundary check.
         if (x < 0 or x >= WINDOW_WIDTH or y < 0 or y >= WINDOW_HEIGHT or self.snakeCoordinates.count(snakeCoordinates) > 1):
-            #we actually need to check if there are two instances of the new head coordinates in the snake coordinates list since the new head coordinates are already appended to the snake coordinates list before calling this method
+            #we actually need to check if there are two instances of the new head coordinates in the snake coordinates 
+            #list since the new head coordinates are already appended to the snake coordinates list before calling this method
             self.gameNotOver = False
             self.queue.put({"game_over": True})
-            # self.snakeCoordinates.clear() #clearing the snake coordinates list since the game is over
-            # self.preyCoordinates = None #clearing the prey coordinates since the game is over
 
     def createNewPrey(self) -> None:
         """ 
@@ -263,17 +263,25 @@ class Game():
 
 if __name__ == "__main__":
     #some constants for our GUI
-    WINDOW_WIDTH = 500           
-    WINDOW_HEIGHT = 300 
-    SNAKE_ICON_WIDTH = 25
+    WINDOW_WIDTH = 500          
+    WINDOW_HEIGHT = 500 
+    SNAKE_ICON_WIDTH = 10
+    SNAKE_ICON_MOVE_STEP = 10 #this is based on the starting coordinates of the snake specified above 
+    SNAKE_ICON_WIDTH_HALF = SNAKE_ICON_WIDTH // 2 #half of the snake icon width 
+    # Important Note: Since the snake moves in steps of SNAKE_ICON_MOVE_STEP, whether 
+    # it appears to reach a wall depends on both the window size and the initial coordinates.
+    # Even if the window dimensions are divisible by SNAKE_ICON_WIDTH, the snake
+    # may still seem to stop early if its starting position is not aligned so that
+    # repeated step-sized moves land exactly on the window boundary.
+
     #add the specified constant PREY_ICON_WIDTH here     
     PREY_ICON_WIDTH = 10
-    PREY_ICON_WIDTH_HALF = PREY_ICON_WIDTH // 2 #half of the prey icon width to be used in the createNewPrey method to calculate the prey rectangle coordinates
+    PREY_ICON_WIDTH_HALF = PREY_ICON_WIDTH // 2 #half of the prey icon width 
 
     BACKGROUND_COLOUR = "grey"   #you may change this colour if you wish
     ICON_COLOUR = "yellow"        #you may change this colour if you wish
 
-    DEBUG = True                   #set to True to enable debug output
+    DEBUG = False                   #set to True to enable debug output
 
     gameQueue = queue.Queue()     #instantiate a queue object using python's queue class
 
@@ -288,10 +296,3 @@ if __name__ == "__main__":
 
     #start the GUI's own event loop
     gui.root.mainloop()
-
-    # check if there will be any conflicts regarding the wait time of the superloop and the gui
-    #if the gui updates slower than the superloop, there will be perceived jumps in the snake movement since the superloop will be updating the snake coordinates more frequently than the gui can update the snake icon on the canvas. 
-    #also, if more directions are pressed within the wait time of the superloop, the last direction will be the one that is registered and the previous directions will be ignored
-
-    #todo: need to update gui in the case of the snake biting itself (it ends game before animation unlike hitting the wall)
-    #todo: need to investigate why the snake dies before hitting the bottom and right walls (maxwidth/height conditions)
